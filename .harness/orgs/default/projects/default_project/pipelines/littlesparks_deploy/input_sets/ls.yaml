@@ -1,0 +1,20 @@
+inputSet:
+  name: ls
+  identifier: ls
+  orgIdentifier: default
+  projectIdentifier: default_project
+  pipeline:
+    identifier: littlesparks_deploy
+    properties:
+      ci:
+        codebase:
+          build: <+input>
+    variables:
+      - name: gcp_project_id
+        type: String
+        default: project-0ddfb2d3-8c78-4896-9a8
+        value: project-0ddfb2d3-8c78-4896-9a8
+      - name: gcp_region
+        type: String
+        default: asia-south1
+        value: asia-south1
