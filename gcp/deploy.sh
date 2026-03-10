@@ -27,33 +27,39 @@ echo "Registry: $REGISTRY"
 echo "Tag:      $IMAGE_TAG"
 echo ""
 
-# ── Authenticate Docker to Artifact Registry ──
-echo "→ Configuring Docker auth..."
-gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
-
-# ── Build and push app image ──
-echo "→ Building app image..."
-docker build \
-  -t "${REGISTRY}/app:${IMAGE_TAG}" \
-  -t "${REGISTRY}/app:latest" \
-  -f docker/Dockerfile \
+# ── Build and push app image via Cloud Build ──
+echo "→ Building app image via Cloud Build (remote)..."
+gcloud builds submit \
+  --project="$PROJECT_ID" \
+  --tag="${REGISTRY}/app:${IMAGE_TAG}" \
+  --timeout=1200s \
+  --quiet \
+  --gcs-log-dir="gs://${PROJECT_ID}_cloudbuild/logs" \
+  --dockerfile=docker/Dockerfile \
   .
 
-echo "→ Pushing app image..."
-docker push "${REGISTRY}/app:${IMAGE_TAG}"
-docker push "${REGISTRY}/app:latest"
+echo "→ Tagging app image as latest..."
+gcloud artifacts docker tags add \
+  "${REGISTRY}/app:${IMAGE_TAG}" \
+  "${REGISTRY}/app:latest" \
+  --quiet 2>&1 || true
 
-# ── Build and push worker image ──
-echo "→ Building worker image..."
-docker build \
-  -t "${REGISTRY}/worker:${IMAGE_TAG}" \
-  -t "${REGISTRY}/worker:latest" \
-  -f docker/Dockerfile.worker \
+# ── Build and push worker image via Cloud Build ──
+echo "→ Building worker image via Cloud Build (remote)..."
+gcloud builds submit \
+  --project="$PROJECT_ID" \
+  --tag="${REGISTRY}/worker:${IMAGE_TAG}" \
+  --timeout=1200s \
+  --quiet \
+  --gcs-log-dir="gs://${PROJECT_ID}_cloudbuild/logs" \
+  --dockerfile=docker/Dockerfile.worker \
   .
 
-echo "→ Pushing worker image..."
-docker push "${REGISTRY}/worker:${IMAGE_TAG}"
-docker push "${REGISTRY}/worker:latest"
+echo "→ Tagging worker image as latest..."
+gcloud artifacts docker tags add \
+  "${REGISTRY}/worker:${IMAGE_TAG}" \
+  "${REGISTRY}/worker:latest" \
+  --quiet 2>&1 || true
 
 # ── Prepare service YAML with actual values ──
 echo "→ Preparing Cloud Run service definition..."

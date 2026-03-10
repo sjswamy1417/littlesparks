@@ -36,33 +36,39 @@ Write-Host "  Registry: $REGISTRY"
 Write-Host "  Tag:      $IMAGE_TAG"
 Write-Host ""
 
-# ── Authenticate Docker to Artifact Registry ──
-Write-Host "-> Configuring Docker auth..." -ForegroundColor Yellow
-gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
-
-# ── Build and push app image ──
-Write-Host "-> Building app image..." -ForegroundColor Yellow
-docker build `
-  -t "${REGISTRY}/app:${IMAGE_TAG}" `
-  -t "${REGISTRY}/app:latest" `
-  -f docker/Dockerfile `
+# ── Build and push app image via Cloud Build (remote) ──
+Write-Host "-> Building app image via Cloud Build (remote)..." -ForegroundColor Yellow
+gcloud builds submit `
+  --project=$PROJECT_ID `
+  --tag="${REGISTRY}/app:${IMAGE_TAG}" `
+  --timeout=1200s `
+  --quiet `
+  --gcs-log-dir="gs://${PROJECT_ID}_cloudbuild/logs" `
+  --dockerfile=docker/Dockerfile `
   .
 
-Write-Host "-> Pushing app image..." -ForegroundColor Yellow
-docker push "${REGISTRY}/app:${IMAGE_TAG}"
-docker push "${REGISTRY}/app:latest"
+Write-Host "-> Tagging app image as latest..." -ForegroundColor Yellow
+gcloud artifacts docker tags add `
+  "${REGISTRY}/app:${IMAGE_TAG}" `
+  "${REGISTRY}/app:latest" `
+  --quiet 2>$null
 
-# ── Build and push worker image ──
-Write-Host "-> Building worker image..." -ForegroundColor Yellow
-docker build `
-  -t "${REGISTRY}/worker:${IMAGE_TAG}" `
-  -t "${REGISTRY}/worker:latest" `
-  -f docker/Dockerfile.worker `
+# ── Build and push worker image via Cloud Build (remote) ──
+Write-Host "-> Building worker image via Cloud Build (remote)..." -ForegroundColor Yellow
+gcloud builds submit `
+  --project=$PROJECT_ID `
+  --tag="${REGISTRY}/worker:${IMAGE_TAG}" `
+  --timeout=1200s `
+  --quiet `
+  --gcs-log-dir="gs://${PROJECT_ID}_cloudbuild/logs" `
+  --dockerfile=docker/Dockerfile.worker `
   .
 
-Write-Host "-> Pushing worker image..." -ForegroundColor Yellow
-docker push "${REGISTRY}/worker:${IMAGE_TAG}"
-docker push "${REGISTRY}/worker:latest"
+Write-Host "-> Tagging worker image as latest..." -ForegroundColor Yellow
+gcloud artifacts docker tags add `
+  "${REGISTRY}/worker:${IMAGE_TAG}" `
+  "${REGISTRY}/worker:latest" `
+  --quiet 2>$null
 
 # ── Prepare service YAML with actual values ──
 Write-Host "-> Preparing Cloud Run service definition..." -ForegroundColor Yellow
