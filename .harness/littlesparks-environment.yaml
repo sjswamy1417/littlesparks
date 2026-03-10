@@ -1,0 +1,40 @@
+environment:
+  name: Production
+  identifier: production
+  orgIdentifier: default
+  projectIdentifier: littlesparks
+  type: Production
+  tags:
+    platform: gcp
+    region: asia-south1
+  variables:
+    - name: gcp_project_id
+      type: String
+      value: <+input>
+    - name: region
+      type: String
+      value: asia-south1
+    - name: cloud_sql_instance
+      type: String
+      value: littlesparks-db
+
+---
+environment:
+  name: Staging
+  identifier: staging
+  orgIdentifier: default
+  projectIdentifier: littlesparks
+  type: PreProduction
+  tags:
+    platform: gcp
+    region: asia-south1
+  variables:
+    - name: gcp_project_id
+      type: String
+      value: <+input>
+    - name: region
+      type: String
+      value: asia-south1
+    - name: cloud_sql_instance
+      type: String
+      value: littlesparks-db-staging

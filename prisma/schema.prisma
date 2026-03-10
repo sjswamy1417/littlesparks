@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  role          Role     @default(CHILD)
+  name          String
+  avatarId      Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  childProfile  Child?
+  parentProfile Parent?
+  @@map("users")
+}
+
+enum Role {
+  CHILD
+  PARENT
+  ADMIN
+}
+
+model Child {
+  id           String       @id @default(cuid())
+  userId       String       @unique
+  user         User         @relation(fields: [userId], references: [id])
+  age          Int
+  stars        Int          @default(0)
+  xp           Int          @default(0)
+  streak       Int          @default(0)
+  lastActiveAt DateTime     @default(now())
+  parentId     String?
+  parent       Parent?      @relation(fields: [parentId], references: [id])
+  progress     Progress[]
+  quizResults  QuizResult[]
+  badges       ChildBadge[]
+  @@map("children")
+}
+
+model Parent {
+  id       String  @id @default(cuid())
+  userId   String  @unique
+  user     User    @relation(fields: [userId], references: [id])
+  children Child[]
+  @@map("parents")
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  description String
+  thumbnail   String?
+  isActive    Boolean  @default(false)
+  order       Int
+  color       String   @default("#FF6B35")
+  icon        String   @default("star")
+  modules     Module[]
+  @@map("courses")
+}
+
+model Module {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id])
+  title       String
+  description String
+  order       Int
+  lessons     Lesson[]
+  quizzes     Quiz[]
+  @@map("modules")
+}
+
+model Lesson {
+  id          String     @id @default(cuid())
+  moduleId    String
+  module      Module     @relation(fields: [moduleId], references: [id])
+  title       String
+  slug        String
+  content     Json
+  duration    Int
+  order       Int
+  starsReward Int        @default(5)
+  progress    Progress[]
+  @@map("lessons")
+}
+
+model Progress {
+  id          String    @id @default(cuid())
+  childId     String
+  child       Child     @relation(fields: [childId], references: [id])
+  lessonId    String
+  lesson      Lesson    @relation(fields: [lessonId], references: [id])
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  starsEarned Int       @default(0)
+  @@unique([childId, lessonId])
+  @@map("progress")
+}
+
+model Quiz {
+  id        String       @id @default(cuid())
+  moduleId  String
+  module    Module       @relation(fields: [moduleId], references: [id])
+  title     String
+  questions Question[]
+  results   QuizResult[]
+  @@map("quizzes")
+}
+
+model Question {
+  id            String       @id @default(cuid())
+  quizId        String
+  quiz          Quiz         @relation(fields: [quizId], references: [id])
+  text          String
+  type          QuestionType @default(MULTIPLE_CHOICE)
+  options       Json
+  correctAnswer String
+  explanation   String
+  order         Int
+  @@map("questions")
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  FILL_IN_BLANK
+  TRUE_FALSE
+}
+
+model QuizResult {
+  id             String   @id @default(cuid())
+  childId        String
+  child          Child    @relation(fields: [childId], references: [id])
+  quizId         String
+  quiz           Quiz     @relation(fields: [quizId], references: [id])
+  score          Int
+  totalQuestions Int
+  starsEarned    Int
+  timeTaken      Int
+  completedAt    DateTime @default(now())
+  @@map("quiz_results")
+}
+
+model Badge {
+  id          String       @id @default(cuid())
+  name        String
+  description String
+  icon        String
+  condition   Json
+  rarity      BadgeRarity  @default(COMMON)
+  children    ChildBadge[]
+  @@map("badges")
+}
+
+enum BadgeRarity {
+  COMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+model ChildBadge {
+  id       String   @id @default(cuid())
+  childId  String
+  child    Child    @relation(fields: [childId], references: [id])
+  badgeId  String
+  badge    Badge    @relation(fields: [badgeId], references: [id])
+  earnedAt DateTime @default(now())
+  @@unique([childId, badgeId])
+  @@map("child_badges")
+}

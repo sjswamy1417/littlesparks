@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: littlesparks
+    env: docker
+    dockerfilePath: ./docker/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: littlesparks-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: littlesparks-redis
+          type: redis
+          property: connectionString
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      - key: NEXTAUTH_URL
+        fromService:
+          name: littlesparks
+          type: web
+          property: host
+      - key: RESEND_API_KEY
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_S3_BUCKET
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+
+databases:
+  - name: littlesparks-db
+    plan: starter
+    databaseName: littlesparks
+    postgresMajorVersion: "16"

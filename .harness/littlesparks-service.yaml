@@ -1,0 +1,35 @@
+service:
+  name: LittleSparks App
+  identifier: littlesparks_service
+  orgIdentifier: default
+  projectIdentifier: littlesparks
+  serviceDefinition:
+    type: CustomDeployment
+    spec:
+      customDeploymentRef:
+        templateRef: gcp_cloudrun
+        versionLabel: v1
+      artifacts:
+        primary:
+          primaryArtifactRef: app_image
+          sources:
+            - identifier: app_image
+              type: GoogleArtifactRegistry
+              spec:
+                connectorRef: account.gcp
+                repositoryType: docker
+                project: <+pipeline.variables.gcp_project_id>
+                region: <+pipeline.variables.gar_region>
+                repositoryName: littlesparks
+                package: app
+                version: <+input>
+            - identifier: worker_image
+              type: GoogleArtifactRegistry
+              spec:
+                connectorRef: account.gcp
+                repositoryType: docker
+                project: <+pipeline.variables.gcp_project_id>
+                region: <+pipeline.variables.gar_region>
+                repositoryName: littlesparks
+                package: worker
+                version: <+input>

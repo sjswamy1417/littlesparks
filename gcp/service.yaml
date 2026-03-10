@@ -1,0 +1,130 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: littlesparks
+  labels:
+    cloud.googleapis.com/location: asia-south1
+  annotations:
+    run.googleapis.com/launch-stage: BETA
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "5"
+        run.googleapis.com/startup-cpu-boost: "true"
+        run.googleapis.com/cloudsql-instances: PROJECT_ID:REGION:littlesparks-db
+        run.googleapis.com/container-dependencies: '{"app":["redis"],"worker":["redis"]}'
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: littlesparks-sa@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        # ── Ingress container: Next.js app ──
+        - name: app
+          image: REGION-docker.pkg.dev/PROJECT_ID/littlesparks/app:latest
+          ports:
+            - name: http1
+              containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: littlesparks-database-url
+            - name: REDIS_URL
+              value: redis://localhost:6379
+            - name: NEXTAUTH_URL
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: littlesparks-nextauth-url
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: littlesparks-nextauth-secret
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: littlesparks-resend-api-key
+            - name: NEXT_PUBLIC_APP_URL
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: littlesparks-nextauth-url
+            - name: NEXT_PUBLIC_APP_NAME
+              value: LittleSparks
+            - name: NEXT_PUBLIC_ENABLE_LEADERBOARD
+              value: "true"
+            - name: NEXT_PUBLIC_ENABLE_PARENT_PORTAL
+              value: "true"
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            periodSeconds: 30
+            failureThreshold: 3
+
+        # ── Sidecar: Redis ──
+        - name: redis
+          image: redis:7-alpine
+          args:
+            - redis-server
+            - --appendonly
+            - "yes"
+            - --maxmemory
+            - 128mb
+            - --maxmemory-policy
+            - allkeys-lru
+            - --save
+            - ""
+          resources:
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          startupProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 2
+            periodSeconds: 2
+            failureThreshold: 5
+
+        # ── Sidecar: BullMQ Worker ──
+        - name: worker
+          image: REGION-docker.pkg.dev/PROJECT_ID/littlesparks/worker:latest
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: littlesparks-database-url
+            - name: REDIS_URL
+              value: redis://localhost:6379
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: latest
+                  name: littlesparks-resend-api-key
+          resources:
+            limits:
+              cpu: 250m
+              memory: 256Mi

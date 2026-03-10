@@ -1,0 +1,15 @@
+# ============================================================================
+# LittleSparks — Terraform Variables (Example)
+# Copy to terraform.tfvars and fill in your values
+# ============================================================================
+
+project_id           = "your-gcp-project-id"
+region               = "asia-south1"
+environment          = "prod"
+db_tier              = "db-f1-micro"        # Use "db-custom-2-4096" for production
+redis_memory_size_gb = 1
+domain               = ""                    # e.g., "app.littlesparks.dev"
+
+# Images are auto-resolved from Artifact Registry if left empty
+# app_image    = "asia-south1-docker.pkg.dev/your-project/littlesparks/app:latest"
+# worker_image = "asia-south1-docker.pkg.dev/your-project/littlesparks/worker:latest"

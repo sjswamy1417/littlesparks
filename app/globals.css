@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-text font-body antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+@layer components {
+  .star-bg {
+    background-image: radial-gradient(2px 2px at 20px 30px, #C8F135, transparent),
+      radial-gradient(2px 2px at 40px 70px, #FF6B35, transparent),
+      radial-gradient(1px 1px at 90px 40px, #7B2FBE, transparent),
+      radial-gradient(1px 1px at 130px 80px, #FFFBF2, transparent),
+      radial-gradient(2px 2px at 160px 30px, #C8F135, transparent),
+      radial-gradient(1px 1px at 200px 60px, #FF6B35, transparent),
+      radial-gradient(2px 2px at 250px 20px, #7B2FBE, transparent),
+      radial-gradient(1px 1px at 300px 90px, #FFFBF2, transparent),
+      radial-gradient(2px 2px at 350px 50px, #C8F135, transparent),
+      radial-gradient(1px 1px at 400px 30px, #FF6B35, transparent);
+    background-size: 420px 100px;
+    animation: twinkle 8s ease-in-out infinite alternate;
+  }
+
+  @keyframes twinkle {
+    0% { opacity: 0.3; }
+    50% { opacity: 0.7; }
+    100% { opacity: 0.4; }
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0F0E17;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2A2A3E;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3A3A4E;
+}

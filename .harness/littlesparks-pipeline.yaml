@@ -1,0 +1,341 @@
+pipeline:
+  name: LittleSparks CI/CD
+  identifier: littlesparks_cicd
+  projectIdentifier: littlesparks
+  orgIdentifier: default
+  tags:
+    app: littlesparks
+    platform: gcp
+  properties:
+    ci:
+      codebase:
+        connectorRef: account.github
+        repoName: littlesparks
+        build: <+input>
+
+  stages:
+    # ════════════════════════════════════════════════════
+    # Stage 1: Build & Test
+    # ════════════════════════════════════════════════════
+    - stage:
+        name: Build and Test
+        identifier: build_and_test
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              # ── Install dependencies ──
+              - step:
+                  type: Run
+                  name: Install Dependencies
+                  identifier: install_deps
+                  spec:
+                    connectorRef: account.dockerhub
+                    image: node:20-alpine
+                    shell: Sh
+                    command: |
+                      npm ci
+
+              # ── Lint check ──
+              - step:
+                  type: Run
+                  name: Lint
+                  identifier: lint
+                  spec:
+                    connectorRef: account.dockerhub
+                    image: node:20-alpine
+                    shell: Sh
+                    command: |
+                      npm run lint
+
+              # ── Type check ──
+              - step:
+                  type: Run
+                  name: TypeScript Check
+                  identifier: typecheck
+                  spec:
+                    connectorRef: account.dockerhub
+                    image: node:20-alpine
+                    shell: Sh
+                    command: |
+                      npx tsc --noEmit
+
+              # ── Unit tests ──
+              - step:
+                  type: Run
+                  name: Unit Tests
+                  identifier: unit_tests
+                  spec:
+                    connectorRef: account.dockerhub
+                    image: node:20-alpine
+                    shell: Sh
+                    command: |
+                      npm run test -- --reporter=junit --outputFile=test-results/results.xml
+                    reports:
+                      type: JUnit
+                      spec:
+                        paths:
+                          - "test-results/*.xml"
+
+              # ── Build app Docker image ──
+              - step:
+                  type: BuildAndPushGAR
+                  name: Build App Image
+                  identifier: build_app_image
+                  spec:
+                    connectorRef: account.gcp
+                    host: <+pipeline.variables.gar_region>-docker.pkg.dev
+                    projectID: <+pipeline.variables.gcp_project_id>
+                    imageName: <+pipeline.variables.gar_repo>/app
+                    tags:
+                      - <+codebase.shortCommitSha>
+                      - latest
+                    dockerfile: docker/Dockerfile
+                    context: .
+                    optimize: true
+
+              # ── Build worker Docker image ──
+              - step:
+                  type: BuildAndPushGAR
+                  name: Build Worker Image
+                  identifier: build_worker_image
+                  spec:
+                    connectorRef: account.gcp
+                    host: <+pipeline.variables.gar_region>-docker.pkg.dev
+                    projectID: <+pipeline.variables.gcp_project_id>
+                    imageName: <+pipeline.variables.gar_repo>/worker
+                    tags:
+                      - <+codebase.shortCommitSha>
+                      - latest
+                    dockerfile: docker/Dockerfile.worker
+                    context: .
+                    optimize: true
+
+    # ════════════════════════════════════════════════════
+    # Stage 2: Deploy to Cloud Run
+    # ════════════════════════════════════════════════════
+    - stage:
+        name: Deploy to GCP
+        identifier: deploy_gcp
+        type: Deployment
+        spec:
+          deploymentType: CustomDeployment
+          service:
+            serviceRef: littlesparks_service
+          environment:
+            environmentRef: <+input>
+            infrastructureDefinitions:
+              - identifier: gcp_cloudrun
+          execution:
+            steps:
+              # ── Prepare service YAML ──
+              - step:
+                  type: ShellScript
+                  name: Prepare Service YAML
+                  identifier: prepare_yaml
+                  spec:
+                    shell: Bash
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          cd <+execution.steps.prepare_yaml.spec.workingDirectory>
+
+                          IMAGE_TAG="<+pipeline.stages.build_and_test.spec.execution.steps.build_app_image.output.outputVariables.IMAGE_DIGEST>"
+                          if [ -z "$IMAGE_TAG" ]; then
+                            IMAGE_TAG="<+codebase.shortCommitSha>"
+                          fi
+
+                          sed \
+                            -e "s|PROJECT_ID|<+pipeline.variables.gcp_project_id>|g" \
+                            -e "s|REGION|<+pipeline.variables.gar_region>|g" \
+                            -e "s|:latest|:${IMAGE_TAG}|g" \
+                            gcp/service.yaml > /tmp/littlesparks-service.yaml
+
+                          echo "Service YAML prepared with tag: ${IMAGE_TAG}"
+                    executionTarget:
+                      host: ""
+
+              # ── Run DB migrations ──
+              - step:
+                  type: ShellScript
+                  name: Run Migrations
+                  identifier: run_migrations
+                  spec:
+                    shell: Bash
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          PROJECT_ID="<+pipeline.variables.gcp_project_id>"
+                          REGION="<+pipeline.variables.gar_region>"
+                          REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/littlesparks"
+                          IMAGE_TAG="<+codebase.shortCommitSha>"
+
+                          gcloud run jobs update littlesparks-migrate \
+                            --image="${REGISTRY}/app:${IMAGE_TAG}" \
+                            --region="$REGION" \
+                            --quiet 2>/dev/null || \
+                          gcloud run jobs create littlesparks-migrate \
+                            --image="${REGISTRY}/app:${IMAGE_TAG}" \
+                            --region="$REGION" \
+                            --set-cloudsql-instances="${PROJECT_ID}:${REGION}:littlesparks-db" \
+                            --set-secrets="DATABASE_URL=littlesparks-database-url:latest" \
+                            --service-account="littlesparks-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+                            --command="npx" \
+                            --args="prisma,migrate,deploy" \
+                            --max-retries=1 \
+                            --quiet
+
+                          gcloud run jobs execute littlesparks-migrate \
+                            --region="$REGION" \
+                            --wait \
+                            --quiet
+                    executionTarget:
+                      host: ""
+
+              # ── Deploy service ──
+              - step:
+                  type: ShellScript
+                  name: Deploy Cloud Run
+                  identifier: deploy_cloudrun
+                  spec:
+                    shell: Bash
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          REGION="<+pipeline.variables.gar_region>"
+
+                          gcloud run services replace /tmp/littlesparks-service.yaml \
+                            --region="$REGION" \
+                            --quiet
+
+                          SERVICE_URL=$(gcloud run services describe littlesparks \
+                            --region="$REGION" \
+                            --format="value(status.url)")
+
+                          echo "Deployed to: $SERVICE_URL"
+                    executionTarget:
+                      host: ""
+
+              # ── Verify deployment ──
+              - step:
+                  type: ShellScript
+                  name: Health Check
+                  identifier: health_check
+                  spec:
+                    shell: Bash
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          REGION="<+pipeline.variables.gar_region>"
+                          SERVICE_URL=$(gcloud run services describe littlesparks \
+                            --region="$REGION" \
+                            --format="value(status.url)")
+
+                          echo "Checking health at ${SERVICE_URL}/api/health ..."
+
+                          for i in $(seq 1 6); do
+                            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${SERVICE_URL}/api/health" || true)
+                            if [ "$STATUS" = "200" ]; then
+                              echo "Health check passed!"
+                              exit 0
+                            fi
+                            echo "Attempt $i: status=$STATUS, retrying in 10s..."
+                            sleep 10
+                          done
+
+                          echo "Health check failed after 6 attempts"
+                          exit 1
+                    executionTarget:
+                      host: ""
+                    timeout: 2m
+
+            rollbackSteps:
+              - step:
+                  type: ShellScript
+                  name: Rollback
+                  identifier: rollback
+                  spec:
+                    shell: Bash
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          REGION="<+pipeline.variables.gar_region>"
+
+                          echo "Rolling back to previous revision..."
+                          REVISIONS=$(gcloud run revisions list \
+                            --service=littlesparks \
+                            --region="$REGION" \
+                            --format="value(metadata.name)" \
+                            --sort-by="~metadata.creationTimestamp" \
+                            --limit=2)
+
+                          PREVIOUS=$(echo "$REVISIONS" | tail -1)
+
+                          if [ -n "$PREVIOUS" ]; then
+                            gcloud run services update-traffic littlesparks \
+                              --region="$REGION" \
+                              --to-revisions="$PREVIOUS=100" \
+                              --quiet
+                            echo "Rolled back to: $PREVIOUS"
+                          else
+                            echo "No previous revision found for rollback"
+                            exit 1
+                          fi
+                    executionTarget:
+                      host: ""
+
+  # ════════════════════════════════════════════════════
+  # Pipeline Variables
+  # ════════════════════════════════════════════════════
+  variables:
+    - name: gcp_project_id
+      type: String
+      description: GCP Project ID
+      required: true
+      value: <+input>
+    - name: gar_region
+      type: String
+      description: GCP Region for Artifact Registry and Cloud Run
+      required: true
+      default: asia-south1
+      value: <+input>.default(asia-south1)
+    - name: gar_repo
+      type: String
+      description: Artifact Registry repository name
+      required: true
+      default: littlesparks
+      value: <+input>.default(littlesparks)
+
+  # ════════════════════════════════════════════════════
+  # Triggers
+  # ════════════════════════════════════════════════════
+  triggers:
+    - trigger:
+        name: Push to Main
+        identifier: push_to_main
+        enabled: true
+        type: Webhook
+        spec:
+          type: Github
+          spec:
+            type: Push
+            spec:
+              connectorRef: account.github
+              autoAbortPreviousExecutions: true
+              payloadConditions:
+                - key: targetBranch
+                  operator: Equals
+                  value: main
+              actions: []
