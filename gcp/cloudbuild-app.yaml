@@ -1,0 +1,16 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGISTRY}/app:${_TAG}'
+      - '-f'
+      - 'docker/Dockerfile'
+      - '.'
+images:
+  - '${_REGISTRY}/app:${_TAG}'
+substitutions:
+  _REGISTRY: ''
+  _TAG: 'latest'
+options:
+  logging: CLOUD_LOGGING_ONLY

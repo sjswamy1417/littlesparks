@@ -31,11 +31,10 @@ echo ""
 echo "→ Building app image via Cloud Build (remote)..."
 gcloud builds submit \
   --project="$PROJECT_ID" \
-  --tag="${REGISTRY}/app:${IMAGE_TAG}" \
+  --config=gcp/cloudbuild-app.yaml \
+  --substitutions="_REGISTRY=${REGISTRY},_TAG=${IMAGE_TAG}" \
   --timeout=1200s \
   --quiet \
-  --gcs-log-dir="gs://${PROJECT_ID}_cloudbuild/logs" \
-  --dockerfile=docker/Dockerfile \
   .
 
 echo "→ Tagging app image as latest..."
@@ -48,11 +47,10 @@ gcloud artifacts docker tags add \
 echo "→ Building worker image via Cloud Build (remote)..."
 gcloud builds submit \
   --project="$PROJECT_ID" \
-  --tag="${REGISTRY}/worker:${IMAGE_TAG}" \
+  --config=gcp/cloudbuild-worker.yaml \
+  --substitutions="_REGISTRY=${REGISTRY},_TAG=${IMAGE_TAG}" \
   --timeout=1200s \
   --quiet \
-  --gcs-log-dir="gs://${PROJECT_ID}_cloudbuild/logs" \
-  --dockerfile=docker/Dockerfile.worker \
   .
 
 echo "→ Tagging worker image as latest..."
