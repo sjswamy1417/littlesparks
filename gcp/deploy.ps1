@@ -40,11 +40,10 @@ Write-Host ""
 Write-Host "-> Building app image via Cloud Build (remote)..." -ForegroundColor Yellow
 gcloud builds submit `
   --project=$PROJECT_ID `
-  --tag="${REGISTRY}/app:${IMAGE_TAG}" `
+  --config=gcp/cloudbuild-app.yaml `
   --timeout=1200s `
   --quiet `
-  --gcs-log-dir="gs://${PROJECT_ID}_cloudbuild/logs" `
-  --dockerfile=docker/Dockerfile `
+  --substitutions="_REGISTRY=${REGISTRY},_TAG=${IMAGE_TAG}" `
   .
 
 Write-Host "-> Tagging app image as latest..." -ForegroundColor Yellow
@@ -57,11 +56,10 @@ gcloud artifacts docker tags add `
 Write-Host "-> Building worker image via Cloud Build (remote)..." -ForegroundColor Yellow
 gcloud builds submit `
   --project=$PROJECT_ID `
-  --tag="${REGISTRY}/worker:${IMAGE_TAG}" `
+  --config=gcp/cloudbuild-worker.yaml `
   --timeout=1200s `
   --quiet `
-  --gcs-log-dir="gs://${PROJECT_ID}_cloudbuild/logs" `
-  --dockerfile=docker/Dockerfile.worker `
+  --substitutions="_REGISTRY=${REGISTRY},_TAG=${IMAGE_TAG}" `
   .
 
 Write-Host "-> Tagging worker image as latest..." -ForegroundColor Yellow
