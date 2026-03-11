@@ -839,6 +839,78 @@ The `README.md` must include:
 
 ---
 
+## GCP Cloud Run Deployment (Production)
+
+The app is deployed to GCP Cloud Run as a multi-container service.
+
+### Live URL
+`https://littlesparks-109887005910.asia-south1.run.app`
+
+### Architecture
+```
+User -> Cloud Run (1 service, 3 containers sharing localhost)
+          |-- app       (Next.js, port 3000, ingress)
+          |-- redis     (Redis 7, port 6379, sidecar)
+          |-- worker    (BullMQ, sidecar)
+               |
+               +-- Cloud SQL PostgreSQL (db-f1-micro, public IP)
+```
+
+### GCP Resources
+| Resource | Name/Details |
+|----------|-------------|
+| Project ID | `project-0ddfb2d3-8c78-4896-9a8` |
+| Region | `asia-south1` |
+| Cloud SQL | `littlesparks-db` (db-f1-micro, POSTGRES_16, Enterprise) |
+| Artifact Registry | `asia-south1-docker.pkg.dev/project-0ddfb2d3-8c78-4896-9a8/littlesparks` |
+| Service Account | `littlesparks-sa@project-0ddfb2d3-8c78-4896-9a8.iam.gserviceaccount.com` |
+| Harness WIF Pool | `harness-pool` / `harness-provider` (for future CI/CD) |
+| Harness SA | `harness-deployer@project-0ddfb2d3-8c78-4896-9a8.iam.gserviceaccount.com` |
+
+### Secrets (GCP Secret Manager)
+- `littlesparks-database-url` — PostgreSQL connection via Cloud SQL Unix socket
+- `littlesparks-nextauth-secret` — JWT signing key
+- `littlesparks-nextauth-url` — `https://littlesparks-109887005910.asia-south1.run.app`
+- `littlesparks-resend-api-key` — Resend API key (placeholder)
+
+### GCP Deployment Scripts
+| Script | Purpose |
+|--------|---------|
+| `gcp/setup.sh` / `gcp/setup.ps1` | One-time infra provisioning (APIs, Cloud SQL, Artifact Registry, IAM, Secrets) |
+| `gcp/deploy.sh` / `gcp/deploy.ps1` | Build via Cloud Build + deploy to Cloud Run |
+| `gcp/seed.sh` / `gcp/seed.ps1` | Seed database via Cloud Run Job |
+| `gcp/service.yaml` | Cloud Run multi-container service definition |
+| `gcp/cloudbuild-app.yaml` | Cloud Build config for app image |
+| `gcp/cloudbuild-worker.yaml` | Cloud Build config for worker image |
+
+### Deploy from Local
+```bash
+export GCP_PROJECT_ID="project-0ddfb2d3-8c78-4896-9a8"
+bash gcp/deploy.sh
+```
+Or PowerShell:
+```powershell
+$env:GCP_PROJECT_ID = "project-0ddfb2d3-8c78-4896-9a8"
+.\gcp\deploy.ps1
+```
+
+### Important Notes
+- Docker is NOT required locally — builds happen remotely via Cloud Build
+- Alpine images MUST include `openssl` package for Prisma engine compatibility
+- Use `prisma db push` for initial schema creation (not `migrate deploy`) to avoid connection timeouts
+- Worker image must be used for migration/seed jobs (has full node_modules)
+- Middleware checks `req.auth?.user` (not `req.auth`) to avoid false login detection in next-auth v5 beta
+
+### Known Issues (TODO)
+- Login/registration forms not functional — API routes need debugging
+- Need to verify all API routes work with Cloud SQL connection
+- RESEND_API_KEY is a placeholder — update when ready
+
+### GitHub Repository
+`https://github.com/sjswamy1417/littlesparks`
+
+---
+
 ## Architecture Decision Record
 
 > **Stack:** Next.js 14 Full-Stack Monorepo

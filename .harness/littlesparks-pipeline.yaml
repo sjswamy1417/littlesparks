@@ -11,7 +11,10 @@ pipeline:
       codebase:
         connectorRef: account.Github_OAuth
         repoName: sjswamy1417/littlesparks
-        build: <+input>
+        build:
+          type: branch
+          spec:
+            branch: <+input>.default(main)
 
   stages:
     # ════════════════════════════════════════════════════

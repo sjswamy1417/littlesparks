@@ -13,6 +13,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis)](https://redis.io/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker)](https://www.docker.com/)
+[![GCP Cloud Run](https://img.shields.io/badge/Cloud%20Run-Deployed-4285F4?style=flat-square&logo=google-cloud)](https://cloud.google.com/run)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38B2AC?style=flat-square&logo=tailwind-css)](https://tailwindcss.com/)
 [![Prisma](https://img.shields.io/badge/Prisma-5-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
@@ -25,7 +26,7 @@
 
 ```bash
 # 1. Clone
-git clone https://github.com/your-org/littlesparks.git && cd littlesparks
+git clone https://github.com/sjswamy1417/littlesparks.git && cd littlesparks
 
 # 2. Start everything with Docker
 docker-compose -f docker/docker-compose.yml up -d
@@ -66,6 +67,53 @@ npm run dev
 ---
 
 ## Architecture
+
+### GCP Cloud Run (Production)
+
+```mermaid
+graph TB
+    subgraph Client
+        Browser[Browser / Mobile]
+    end
+
+    subgraph "GCP Cloud Run — Single Service"
+        subgraph "Ingress Container"
+            APP[Next.js App :3000]
+            SSR[Server Components]
+            API[API Routes]
+            AUTH[NextAuth.js]
+        end
+        subgraph "Sidecar Containers"
+            RD[(Redis 7 :6379)]
+            WK[BullMQ Worker]
+        end
+    end
+
+    subgraph "GCP Managed Services"
+        CSQL[(Cloud SQL PostgreSQL 16)]
+        SM[Secret Manager]
+        AR[Artifact Registry]
+    end
+
+    subgraph "External Services"
+        RS[Resend Email]
+    end
+
+    Browser --> APP
+    APP --> SSR
+    APP --> API
+    API --> AUTH
+    API --> CSQL
+    API --> RD
+    API --> WK
+    WK --> CSQL
+    WK --> RD
+    WK --> RS
+    SM -.-> APP
+    AR -.-> APP
+```
+
+### Local Development (Docker Compose)
 
 ```mermaid
 graph TB
@@ -130,7 +178,7 @@ graph TB
 | **Cache/Queue** | Redis 7 (ioredis), BullMQ |
 | **Email** | Resend |
 | **Storage** | S3-compatible (Cloudflare R2 / AWS S3) |
-| **Infra** | Docker, Docker Compose, Nginx |
+| **Infra** | Docker, Docker Compose, Nginx, GCP Cloud Run |
 | **Testing** | Vitest, React Testing Library, Playwright |
 | **CI/CD** | GitHub Actions |
 
@@ -155,6 +203,8 @@ graph TB
 | `S3_ENDPOINT` | S3 endpoint URL | |
 | `NEXT_PUBLIC_ENABLE_LEADERBOARD` | Enable leaderboard feature | `true` |
 | `NEXT_PUBLIC_ENABLE_PARENT_PORTAL` | Enable parent portal | `true` |
+| `GCP_PROJECT_ID` | GCP project ID (for Cloud Run deploy) | |
+| `GCP_REGION` | GCP region | `asia-south1` |
 
 ---
 
@@ -183,6 +233,56 @@ graph TB
 ---
 
 ## Deployment
+
+### GCP Cloud Run (Production — Current)
+
+Live at: `https://littlesparks-109887005910.asia-south1.run.app`
+
+**Architecture:**
+```
+User -> Cloud Run (1 service, 3 containers sharing localhost)
+          |-- app       (Next.js, port 3000, ingress)
+          |-- redis     (Redis 7, port 6379, sidecar)
+          |-- worker    (BullMQ, sidecar)
+               |
+               +-- Cloud SQL PostgreSQL (db-f1-micro, public IP)
+```
+
+**First-time setup:**
+```bash
+# 1. Set project ID
+export GCP_PROJECT_ID="project-0ddfb2d3-8c78-4896-9a8"
+
+# 2. Provision infrastructure (Cloud SQL, Artifact Registry, IAM, Secrets)
+bash gcp/setup.sh
+
+# 3. Build & deploy
+bash gcp/deploy.sh
+
+# 4. Seed database
+bash gcp/seed.sh
+```
+
+**Subsequent deploys:**
+```bash
+export GCP_PROJECT_ID="project-0ddfb2d3-8c78-4896-9a8"
+bash gcp/deploy.sh
+```
+
+**PowerShell (Windows):**
+```powershell
+$env:GCP_PROJECT_ID = "project-0ddfb2d3-8c78-4896-9a8"
+.\gcp\deploy.ps1
+```
+
+**Key details:**
+- Docker is NOT required locally — builds happen remotely via Cloud Build
+- Images stored in Artifact Registry (`asia-south1-docker.pkg.dev`)
+- Secrets managed via GCP Secret Manager
+- Multi-container service defined in `gcp/service.yaml`
+- See `gcp/` directory for all deployment scripts and configs
+
+---
 
 ### Fly.io
 
@@ -295,6 +395,7 @@ littlesparks/
 ├── workers/                # BullMQ background workers
 ├── nginx/                  # Nginx reverse proxy config
 ├── docker/                 # Docker build files
+├── gcp/                    # GCP Cloud Run deployment scripts
 └── .github/workflows/      # CI/CD
 ```
 
