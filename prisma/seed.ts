@@ -13,7 +13,7 @@ async function main() {
 
   const parentUser = await prisma.user.upsert({
     where: { email: "parent@littlesparks.dev" },
-    update: {},
+    update: { passwordHash: parentPasswordHash },
     create: {
       email: "parent@littlesparks.dev",
       passwordHash: parentPasswordHash,
@@ -32,7 +32,7 @@ async function main() {
 
   const childUser = await prisma.user.upsert({
     where: { email: "spark@littlesparks.dev" },
-    update: {},
+    update: { passwordHash: childPasswordHash },
     create: {
       email: "spark@littlesparks.dev",
       passwordHash: childPasswordHash,

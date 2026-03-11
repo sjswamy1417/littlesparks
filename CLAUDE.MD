@@ -902,9 +902,7 @@ $env:GCP_PROJECT_ID = "project-0ddfb2d3-8c78-4896-9a8"
 - Middleware checks `req.auth?.user` (not `req.auth`) to avoid false login detection in next-auth v5 beta
 
 ### Known Issues (TODO)
-- Login/registration forms not functional — API routes need debugging
-- Need to verify all API routes work with Cloud SQL connection
-- RESEND_API_KEY is a placeholder — update when ready
+- RESEND_API_KEY is a placeholder — update when ready for transactional emails
 
 ### GitHub Repository
 `https://github.com/sjswamy1417/littlesparks`

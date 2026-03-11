@@ -2,6 +2,7 @@
 const nextConfig = {
   output: "standalone",
   compress: true,
+  serverExternalPackages: ["bcryptjs", "@prisma/client", "pino", "pino-pretty"],
   images: {
     remotePatterns: [
       {
