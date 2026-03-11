@@ -10,7 +10,7 @@ export const registerSchema = z.object({
     .regex(/[0-9]/, "Password must contain a number"),
   role: z.enum(["CHILD", "PARENT"]).default("CHILD"),
   age: z.number().min(4).max(18).optional(),
-  parentEmail: z.string().email().optional(),
+  parentEmail: z.union([z.string().email(), z.literal("")]).optional().transform((v) => (v === "" ? undefined : v)),
 });
 
 export const loginSchema = z.object({

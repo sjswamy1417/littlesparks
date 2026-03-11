@@ -9,7 +9,6 @@ export async function GET() {
     const session = await auth();
 
     const courses = await prisma.course.findMany({
-      where: { isActive: true },
       orderBy: { order: "asc" },
       include: {
         modules: {
@@ -54,6 +53,7 @@ export async function GET() {
           thumbnail: course.thumbnail,
           color: course.color,
           icon: course.icon,
+          isActive: course.isActive,
           order: course.order,
           totalLessons,
           ...(progressPercentage !== undefined && { progressPercentage }),

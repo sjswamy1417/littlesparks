@@ -162,6 +162,65 @@ function TryItSection({ block }: { block: TryItBlock }) {
   );
 }
 
+function renderText(text: string) {
+  const paragraphs = text.split(/\n\n+/);
+
+  return (
+    <div className="space-y-2">
+      {paragraphs.map((para, pi) => {
+        const lines = para.split("\n");
+        const isBulletList = lines.some((l) => l.trim().startsWith("•"));
+        const isNumberedList = lines.some((l) => /^\d+\.\s/.test(l.trim()));
+
+        if (isBulletList || isNumberedList) {
+          const listLines = lines.filter((l) => l.trim());
+          return (
+            <ul key={pi} className={isBulletList ? "space-y-1.5" : "space-y-1.5 list-none"}>
+              {listLines.map((line, li) => {
+                const trimmed = line.trim();
+                const isBullet = trimmed.startsWith("•");
+                const isNum = /^\d+\.\s/.test(trimmed);
+                if (!isBullet && !isNum) {
+                  return (
+                    <p key={li} className="text-sm text-text-muted font-body leading-relaxed">
+                      {trimmed}
+                    </p>
+                  );
+                }
+                const content = isBullet
+                  ? trimmed.slice(1).trim()
+                  : trimmed.replace(/^\d+\.\s/, "");
+                return (
+                  <li key={li} className="flex items-start gap-2.5 text-sm text-text-muted font-body leading-relaxed">
+                    <span className={cn(
+                      "shrink-0 mt-0.5 font-bold",
+                      isBullet ? "text-primary" : "text-secondary min-w-[1.2rem]"
+                    )}>
+                      {isBullet ? "→" : trimmed.match(/^\d+/)?.[0] + "."}
+                    </span>
+                    <span>{content}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          );
+        }
+
+        return (
+          <p key={pi} className="text-sm text-text-muted font-body leading-relaxed">
+            {lines.map((line, li) => (
+              <span key={li}>
+                {li > 0 && <br />}
+                {line}
+              </span>
+            ))}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export function LessonContent({ content, className }: LessonContentProps) {
   return (
     <div className={cn("space-y-6", className)}>
@@ -191,12 +250,10 @@ export function LessonContent({ content, className }: LessonContentProps) {
                 transition={{ delay: index * 0.1 }}
                 className="rounded-lg border border-border bg-surface p-5"
               >
-                <h3 className="font-display text-lg font-bold text-text mb-2">
+                <h3 className="font-display text-lg font-bold text-text mb-3">
                   {block.title}
                 </h3>
-                <p className="text-sm text-text-muted font-body leading-relaxed">
-                  {block.text}
-                </p>
+                {renderText(block.text)}
               </motion.div>
             );
 
@@ -246,9 +303,7 @@ export function LessonContent({ content, className }: LessonContentProps) {
                     <span className="text-xs font-mono text-accent uppercase tracking-wider font-bold">
                       Pro Tip
                     </span>
-                    <p className="mt-1 text-sm text-text font-body leading-relaxed">
-                      {block.text}
-                    </p>
+                    <div className="mt-1">{renderText(block.text)}</div>
                     {block.example && (
                       <p className="mt-2 font-mono text-sm text-text-muted bg-background rounded px-3 py-2">
                         {block.example}
